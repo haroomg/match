@@ -1,0 +1,26 @@
+# Estrutura de los Directorios:
+
+-   .venv:
+        Entorno virtual de python.
+        #1 status: ignorada.
+
+-   app:
+        contiene los scripts de python, osea el proyecto en si.
+
+-   data:
+        Contiene los datos que usaremos como prueba o para descragar.
+        #1 status: ignorada.
+
+-   sandbox:
+        Contiene los archivos de .ipynb para ejecutar las pruebas.
+        #1 status: ignorada.
+
+-   trash:
+        Carpetas o archivos que vamos a guardar para despues borrarlos.
+        #1 status: ignorada.
+
+____________________________________________________________________________________________________
+
+# leyenda:
+
+-    #1 status: quiere decir que la carpeta o archivo va a ser ignorada por el git y docker
