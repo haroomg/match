@@ -19,8 +19,25 @@
         Carpetas o archivos que vamos a guardar para despues borrarlos.
         #1 status: ignorada.
 
-____________________________________________________________________________________________________
+    ## leyenda:
+        #1 status: quiere decir que la carpeta o archivo va a ser ignorada por el git y docker
 
-# leyenda:
+_____________________________________________________________________________________________________________________________________________________________________________
 
--    #1 status: quiere decir que la carpeta o archivo va a ser ignorada por el git y docker
+# FatsDup:
+
+        Para poder ejecutar la comparacion de imagenes en el S3. Primero se tiene que descargar y configurar en la distro
+        de linux que se esta usando awscli.
+
+                $ sudo apt install awscli
+                $ aws configure
+                $ aws s3 ls s3://<your bucket name>
+        
+        Usa las varibles de entornos que tienes en el .env para poder conectarte al S3.
+
+_____________________________________________________________________________________________________________________________________________________________________________
+
+# FastApi:
+
+        comando para desplegar el servidor:
+                $ uvicorn main:app --reload
