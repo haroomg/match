@@ -1,32 +1,11 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, validator
-from dotenv import load_dotenv
-from typing import Union
+from .schemas import Matching_images
+from .s3 import s3
 import pandas as pd
 import fastdup
-import boto3
 import os
 
 app = FastAPI()
-
-# Obtenemos los env
-load_dotenv(".env")
-
-# Crea una instancia del cliente de S3
-s3 = boto3.client(
-    's3',
-    aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-)
-
-class Matching_images(BaseModel):
-    
-    bucket: str
-    path_origin_file: str
-    path_alternative_file: str
-    path_origin_img: str
-    path_alternative_img: str
-    img_per_object: Union[int, None]
 
 
 @app.post("/matching/image/")
