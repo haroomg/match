@@ -5,9 +5,21 @@ import os
 load_dotenv(".env")
 app: str = "app.main:app"
 
-# aqui va la parte que crea las carpetas pertinentes
 
 if __name__ == "__main__":
+    
+    # creamos la carpeta trash donde vamos a estar creando y borrando archivos
+    if os.path.exists("trash"):
+        if not os.path.exists("trash/fastdup/"):
+            os.makedirs("trash/fastdup/")
+            
+        if not os.path.exists("trash/s3/"):
+            os.makedirs("trash/s3/")
+    else:
+        os.makedirs("trash")
+        os.makedirs("trash/fastdup/")
+        os.makedirs("trash/s3/")
+    
     run(
         app, 
         host=  os.environ.get("FASTDUP_HOST"),

@@ -60,7 +60,7 @@ def matching_images(matching_data: Matching_images):
     del response
     
     # descargamos los archivos del origin y el aternative
-    PATH_TRASH: str = "trash/s3/json/"
+    PATH_TRASH: str = "../trash/s3/"
     
     file_origin: str = os.path.join(PATH_TRASH, path_origin_file.split("/")[-1])
     file_alternative: str = os.path.join(PATH_TRASH, path_alternative_file.split("/")[-1])
@@ -82,7 +82,7 @@ def matching_images(matching_data: Matching_images):
     df_aternative: pd.DataFrame = pd.read_json(file_alternative)
     os.remove(file_alternative)
     
-    WORK_DIR: str = "trash/fastdup/"
+    WORK_DIR: str = "../trash/fastdup/"
     input_dir: list = []
     
     if img_per_object == 0 or img_per_object == None:
@@ -96,8 +96,6 @@ def matching_images(matching_data: Matching_images):
     fd = fastdup.create(WORK_DIR)
     fd.run(input_dir, threshold= 0.5, overwrite= True, high_accuracy= True)
     similarity = fd.similarity()
-    
-    similarity.to_json("trash/s3/json/similarity.json")
     
     return {
         "bucket": bucket,

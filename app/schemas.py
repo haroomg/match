@@ -8,5 +8,5 @@ class Matching_images(BaseModel):
     path_alternative_file: str
     path_origin_img: str
     path_alternative_img: str
+    path_report_matching_similar: str
     img_per_object: Union[int, None]
-

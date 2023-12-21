@@ -40,4 +40,6 @@ ________________________________________________________________________________
 # FastApi:
 
         comando para desplegar el servidor:
-                $ uvicorn main:app --reload
+                $ uvicorn app.main:app --reload
+        o tambine se puede usar:
+                $ python3 run.py
