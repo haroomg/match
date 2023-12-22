@@ -87,7 +87,7 @@ async def matching_images(matching_data: Matching_images):
         raise HTTPException(status_code=404, detail="Debes ingresar la direccion donde se va a guardar el reporte")
     
     # descargamos los archivos del origin y el aternative
-    PATH_TRASH: str = "../trash/s3/"
+    PATH_TRASH: str = "trash/s3/"
     
     file_origin: str = os.path.join(PATH_TRASH, path_origin_file.split("/")[-1])
     file_alternative: str = os.path.join(PATH_TRASH, path_alternative_file.split("/")[-1])
@@ -109,7 +109,7 @@ async def matching_images(matching_data: Matching_images):
     df_aternative: pd.DataFrame = pd.read_json(file_alternative)
     os.remove(file_alternative)
     
-    WORK_DIR: str = "../trash/fastdup/"
+    WORK_DIR: str = "trash/fastdup/"
     FIELD_NAME_IMAGES: str = "product_images"
     input_dir: list = []
     
@@ -135,7 +135,7 @@ async def matching_images(matching_data: Matching_images):
                         f"s3://{bucket}/{path_s3}{img}\n"
                     )
                 
-    path_files_s3: str = "../trash/fastdup/address_files_s3.txt"
+    path_files_s3: str = "trash/fastdup/address_files_s3.txt"
     with open(path_files_s3, "w", encoding="utf8") as file:
         for path in input_dir:
             file.write(path)
@@ -196,7 +196,7 @@ async def matching_images(matching_data: Matching_images):
         if ref_origin not in matches:
             matches[ref_origin] = ref_alternative
     
-    local_path: str = "../trash/reports/" + path_report.split("/")[-1]
+    local_path: str = "trash/reports/" + path_report.split("/")[-1]
     
     # creamos un archivo json donde guardaremos el match
     with open(local_path, "w", encoding="utf8") as file:
