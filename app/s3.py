@@ -4,8 +4,7 @@ import os
 
 class S3():
     
-    def __init__(self, bucket) -> None:
-        
+    def __init__(self, bucket: str = None) -> None:
         
         # Obtenemos los env
         load_dotenv("../.env")
@@ -23,6 +22,13 @@ class S3():
         except:
             raise ValueError("Error en la coneccion al s3, revisa que las credenciales esten bien escritas")
         
+        # si no ingresa el bucket quiere decir que lo debemos buscar en el .env
+        if bucket == None:
+            bucket = os.environ.get("AWS_BUCKET_NAME")
+            
+            if not bucket:
+                raise ValueError("No hay un env que contenga el nombre del bucket.") 
+        
         if bucket in self.buckets:
             self.bucket = bucket
         else:
@@ -38,10 +44,10 @@ class S3():
         self,
         local_route: str = None,
         file_s3_route: str = None
-    ) -> None:
+    ) -> str:
         
         file_s3_route = file_s3_route.replace(self.bucket, "") if file_s3_route.startswith(self.bucket) else file_s3_route
-        file_name_s3: str = file_s3_route.split("/")
+        file_name_s3: str = file_s3_route.split("/")[-1]
         local_route += file_name_s3 if local_route.endswith("/") else f"/{file_name_s3}"
         
         try:
@@ -53,7 +59,8 @@ class S3():
             
             print(f"El archivo {file_name_s3} acaba de ser descargado en la ruta {local_route}")
             
-            return 
+            return local_route
+        
         except ValueError as e:
             print(e)
 
@@ -85,24 +92,67 @@ class S3():
 
     def valid_route(
         self,
-        s3_route: str = None
-        ) -> bool:
+        s3_route: str | list = None
+        ) -> tuple:
         
+        """Sirve para validar un archivo en el s3."""
         
-        """Sirve para validar si una ruta or archivo existe en el s3."""
+        if isinstance(s3_route, str):
+            s3_route = [s3_route]
         
-        if not s3_route.endswith("/"):
+        all_correct = []
+        
+        for route in s3_route:
             
-            print("La ruta ingresado no contiene '/' al final de esta, ingresalo para que no de error.")
-            s3_route += "/"
+            response = self.s3.list_objects_v2(Bucket=self.bucket, Prefix=route)
+            
+            if "Contents" in response:
+                print(f"La ruta {route} existe.")
+                all_correct.append(True)
+            else:
+                print(f"La ruta {route} no existe o esta mal escrita")
+                all_correct.append(False)
         
-        response = self.s3.list_objects_v2(Bucket=self.bucket, Prefix=s3_route)
-        
-        if "Contents" in response:
-            print("La ruta existe.")
-            return True
+        if all(all_correct):
+            return True, None
         else:
-            print("La ruta no existe o esta mal escrita")
-            return False
+            error_route = [route for route, correct in zip(s3_route, all_correct) if not correct]
+            print("Las siguientes rutas no existen o están mal escritas:")
+            for route in error_route:
+                print(route)
+            
+            return False, error_route
 
 
+    def valid_file(
+        self,
+        s3_route_file: str | list = None
+        ) -> tuple:
+        
+        if isinstance(s3_route_file, str):
+            s3_route_file = [s3_route_file]
+        
+        """Sirve para validar si una ruta en el s3."""
+        
+        all_correct: list = []
+        
+        for route in s3_route_file:
+            
+            response = self.s3.list_objects_v2(Bucket=self.bucket, Prefix= route)
+            
+            if "Contents" in response:
+                print(f"La ruta '{route}' existe.")
+                all_correct.append(True)
+            else:
+                print(f"La ruta '{route}' no existe o esta mal escrita")
+                all_correct.append(False)
+    
+        if all(all_correct):
+            return True, None
+        else:
+            error_route = [route for route, correct in zip(s3_route_file, all_correct) if not correct]
+            print("Las siguientes rutas no existen o están mal escritas:")
+            for route in error_route:
+                print(route)
+                
+            return False, error_route
