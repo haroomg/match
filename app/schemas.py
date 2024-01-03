@@ -10,7 +10,11 @@ class Matching_images(BaseModel):
     path_alternative_img: str
     path_report: str
     img_per_object: int | None = 0
-    setting: dict | None = None
+    setting: dict | None = {
+        "file_name_imgs": "",
+        "ref_origin": "sku",
+        "ref_alternative": "sku"
+    }
     
     # 3
     # aqui deberia de ir la validacion de los tipos de datos y validar otras cosas 
