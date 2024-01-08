@@ -38,20 +38,25 @@ def add_metadata(img_path: str = None, metadata: dict = None) -> str:
         print("La imagen contiene metadata.")
         
     except:
-        image = imageio.imread(img_path)
         
-        if not metadata:
-            # Si el usario no define una metadata, nosotros agregamos
-            metadata = {
-                "msm": "Esta imagen no contenia Metadata",
-                "repair_day": datetime.date.today()
-            }
-        
-        elif not isinstance(metadata, dict):
-            raise ValueError(f"El atributo de Metadata debe ser de tipo dict, no de tipo {type(metadata).__name__}")
+        try:
+            image = imageio.imread(img_path)
+            
+            if not metadata:
+                # Si el usario no define una metadata, nosotros agregamos
+                metadata = {
+                    "msm": "Esta imagen no contenia Metadata",
+                    "repair_day": datetime.date.today()
+                }
+            
+            elif not isinstance(metadata, dict):
+                raise ValueError(f"El atributo de Metadata debe ser de tipo dict, no de tipo {type(metadata).__name__}")
 
-        # re-escribimos la imagen con la metadata agregada
-        imageio.imwrite(img_path, image, **metadata)
-        print(f"Se acaba de agregar la metadata en el archivo {file_name}")
+            # re-escribimos la imagen con la metadata agregada
+            imageio.imwrite(img_path, image, **metadata)
+            print(f"Se acaba de agregar la metadata en el archivo {file_name}")
+        
+        except:
+            print(f"El error de la imagen {file_name} no es por metadata.")
     
     return img_path

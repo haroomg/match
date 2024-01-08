@@ -1,7 +1,8 @@
+from functions import add_metadata, delete_directory_content
 from fastapi import FastAPI, HTTPException
 from .schemas import Matching_images
-from .s3 import S3
 import pandas as pd
+from .s3 import S3
 import fastdup
 import json
 import os
@@ -81,6 +82,7 @@ async def matching_images(matching_data: Matching_images):
     
     
     # finalización de la parte de validación de data
+    # --------------------------------------------------------------------------------------------------------------------------------------------------------------------
     
     PATH_TRASH: str = "trash/s3/"
     WORK_DIR: str = "trash/fastdup/"
@@ -89,10 +91,12 @@ async def matching_images(matching_data: Matching_images):
     # descargamos los archivos del origin y el aternative
     # lo pasamos a df y despues borramos el archivo
     
+    # origin
     origin_local_file = s3.download_file(PATH_TRASH, path_origin_file)
     df_origin: pd.DataFrame = pd.read_json(origin_local_file)
     os.remove(origin_local_file)
     
+    # alternative
     alternative_local_file = s3.download_file(PATH_TRASH, path_alternative_file)
     df_aternative: pd.DataFrame = pd.read_json(alternative_local_file)
     os.remove(alternative_local_file)
@@ -121,7 +125,7 @@ async def matching_images(matching_data: Matching_images):
                         f"s3://{bucket}/{path_s3}{img}\n"
                     )
     
-    # la lista de imagenes que vamos a analizar lo apsamos a txt para que fastdup las procese
+    # la lista de imagenes que vamos a analizar lo pasamos a txt para que fastdup las procese
     path_files_s3: str = "trash/fastdup/address_files_s3.txt"
     with open(path_files_s3, "w", encoding="utf8") as file:
         for path in input_dir:
@@ -129,11 +133,34 @@ async def matching_images(matching_data: Matching_images):
         
     fd = fastdup.create(WORK_DIR)
     fd.run(path_files_s3, threshold= 0.5, overwrite= True, high_accuracy= True)
+    
+    #3
+    # Validamos si existen imagines corruptas
+    invalid_img_s3: list = fd.invalid_instances()["filename"].to_list()
+    
+    if len(invalid_img_s3):
+        
+        for img_path in invalid_img_s3:
+            
+            # acomodamos las imagenes que no contienen metadata
+            add_metadata(img_path)
+            
+            # Extraigo el nombre de las imagens de se descargaron del s3
+            fastdup_path: str = "trash/fastdup/tmp/"
+            fastdup_path_img: [os.path.join(fastdup_path, path) for path in os.listdir(fastdup_path) if os.path.isdir()]
+            
+            # una vez acomodadas las imagenes trabajamos mandamos a correr fastdup
+            fd.run(fastdup_path_img, threshold= 0.5, overwrite= True, high_accuracy= True)
+            
+            # Volvemos a pedir las imagenes que estan corruptas ya que no son por falta de metadata, notificamos el error de estas
+            invalid_img_s3: list = fd.invalid_instances()["filename"].to_list()
+    
+    
     similarity = fd.similarity()
     os.remove(path_files_s3)
     
-    for col_name in ["filename_from", "filename_to"]:
-        similarity[col_name] = similarity[col_name].apply(lambda x : x.split("/")[-1])
+    for col_name in ["filename_from", "filename_to"]: 
+        similarity[col_name] = similarity[col_name].apply(lambda x : os.path.basename(x))
 
     # aqui empieza el anailisis de la data de cuales fueron las imagenes con similitud
     result = pd.DataFrame()
