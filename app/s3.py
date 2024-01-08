@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+from typing import Union
 import boto3
 import os
 
@@ -67,32 +68,39 @@ class S3():
 
     def upload_file(
         self, 
-        local_route: str = None, 
+        local_route: Union[str, list] = None, 
         s3_route: str = None
         ) -> None:
         
-        file_name_local = local_route.split("/")[-1]
-        s3_route = s3_route.replace(self.bucket, "") if s3_route.startswith(self.bucket) else s3_route
-        s3_route += file_name_local if s3_route.endswith("/") else f"/{file_name_local}"
+        if isinstance(local_route, str):
+            local_route = [local_route]
         
-        try:
-            self.s3.upload_file(
-                local_route,
-                self.bucket,
-                s3_route
-                )
-            
-            print(f"El archivo {file_name_local} se ha subido en s3://{self.bucket}/{s3_route}")
-            
-            return
+        if isinstance(s3_route, str):
+            s3_route = [s3_route]
         
-        except ValueError as e:
-            print(e)
+        for local_file, s3_file in zip(local_route, s3_route):
+            
+            s3_file = s3_file.replace(self.bucket, "") if s3_file.startswith(self.bucket) else s3_file
+            file_name = os.path.basename(local_file)
+
+            try:
+                self.s3.upload_file(
+                    local_file,
+                    self.bucket,
+                    os.path.join(s3_file, file_name)
+                    )
+                
+                print(f"El archivo {file_name} se ha subido en s3://{self.bucket}/{s3_file}")
+                
+                return
+            
+            except ValueError as e:
+                print(e)
 
 
     def valid_route(
         self,
-        s3_route: str | list = None
+        s3_route: Union[str, list] = None
         ) -> tuple:
         
         """Sirve para validar un archivo en el s3."""
@@ -126,7 +134,7 @@ class S3():
 
     def valid_file(
         self,
-        s3_route_file: str | list = None
+        s3_route_file: Union[str, list] = None
         ) -> tuple:
         
         if isinstance(s3_route_file, str):
@@ -157,4 +165,40 @@ class S3():
                 
             return False, error_route
 
+
+    def update_file(
+        self,
+        s3_file: Union[str, list] = None,
+        local_file: Union[str, list] = None
+    ) -> None:
+        
+        if isinstance(s3_file, str):
+            s3_file = [s3_file]
+        
+        if isinstance(local_file, str):
+            local_file = [local_file]
+        
+        if len(s3_file) != len(local_file):
+            raise ValueError("El len de ambos de s3_file y local_file deben ser iguales ")
+        
+        print(f"{len(s3_file)} van a ser actualizados en el bucket {self.bucket}")
+        
+        for s3_route, local_route in zip(s3_file, local_file):
+            
+            s3_route = s3_route.replace(self.bucket, "") if s3_route.startswith(self.bucket) else s3_route
+            file_name = os.path.basename(local_route)
+            
+            try:
+                self.s3.upload_file(
+                    local_route, 
+                    self.bucket, 
+                    s3_route
+                    )
+            
+                print(f"El archivo {file_name} acaba de ser actualizado.")
+            
+            except TypeError as e:
+                print(e)
+
+# falta acomodar algunos errores que son MUCHOSSSSSS pero muy mucho errores
 # falta borrar
