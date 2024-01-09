@@ -15,11 +15,15 @@ if __name__ == "__main__":
             
         if not os.path.exists("trash/reports/"):
             os.makedirs("trash/reports/")
+        
+        if not os.path.exists("trash/s3/"):
+            os.makedirs("trash/s3/")
             
     else:
         os.makedirs("trash")
         os.makedirs("trash/fastdup/")
         os.makedirs("trash/reports/")
+        os.makedirs("trash/s3/")
     
     run(
             app, 

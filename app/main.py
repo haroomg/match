@@ -1,4 +1,4 @@
-from functions import add_metadata, delete_directory_content
+from .functions import add_metadata, delete_directory_content
 from fastapi import FastAPI, HTTPException
 from .schemas import Matching_images
 import pandas as pd
@@ -136,24 +136,26 @@ async def matching_images(matching_data: Matching_images):
     
     #3
     # Validamos si existen imagines corruptas
-    invalid_img_s3: list = fd.invalid_instances()["filename"].to_list()
+    fastdup_path: str = "trash/fastdup/tmp/"
+    invalid_img_s3: list = [os.path.join(fastdup_path, path.replace(f"s3://{bucket}/", "")) for path in fd.invalid_instances()["filename"].to_list()]
     
-    if len(invalid_img_s3):
+    if len(invalid_img_s3): 
         
         for img_path in invalid_img_s3:
             
             # acomodamos las imagenes que no contienen metadata
             add_metadata(img_path)
             
-            # Extraigo el nombre de las imagens de se descargaron del s3
-            fastdup_path: str = "trash/fastdup/tmp/"
-            fastdup_path_img: [os.path.join(fastdup_path, path) for path in os.listdir(fastdup_path) if os.path.isdir()]
-            
-            # una vez acomodadas las imagenes trabajamos mandamos a correr fastdup
-            fd.run(fastdup_path_img, threshold= 0.5, overwrite= True, high_accuracy= True)
-            
-            # Volvemos a pedir las imagenes que estan corruptas ya que no son por falta de metadata, notificamos el error de estas
-            invalid_img_s3: list = fd.invalid_instances()["filename"].to_list()
+        # Extraigo el nombre de las imagens de se descargaron del s3
+        
+        fastdup_path_img: list = [os.path.join(fastdup_path, path) for path in os.listdir(fastdup_path)]
+        fastdup_path_img = [ path for path in fastdup_path_img if os.path.isdir(path)]
+        
+        # una vez acomodadas las imagenes trabajamos mandamos a correr fastdup
+        fd.run(fastdup_path_img, threshold= 0.5, overwrite= True, high_accuracy= True)
+        
+        # Volvemos a pedir las imagenes que estan corruptas ya que no son por falta de metadata, notificamos el error de estas
+        invalid_img_s3: list = fd.invalid_instances()["filename"].to_list()
     
     
     similarity = fd.similarity()
