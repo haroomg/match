@@ -200,5 +200,12 @@ class S3():
             except TypeError as e:
                 print(e)
 
+
+    def delete_file(
+        self, 
+        s3_path_file
+    ) -> None:
+        
+        # Te la debo
+        pass
 # falta acomodar algunos errores que son MUCHOSSSSSS pero muy mucho errores
-# falta borrar

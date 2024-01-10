@@ -1,4 +1,4 @@
-from .functions import add_metadata, delete_directory_content
+from .functions import add_metadata, delete_directory_content, search_parameter
 from fastapi import FastAPI, HTTPException
 from .schemas import Matching_images
 import pandas as pd
@@ -86,26 +86,60 @@ async def matching_images(matching_data: Matching_images):
     
     PATH_TRASH: str = "trash/s3/"
     WORK_DIR: str = "trash/fastdup/"
-    FIELD_NAME_IMAGES: str = "product_images"
+    
+    origin_field_name_images: str = setting["origin_file_name_imgs"]
+    alternative_field_name_images: str = setting["alternative_file_name_imgs"]
     
     # descargamos los archivos del origin y el aternative
     # lo pasamos a df y despues borramos el archivo
     
+    # Falta implementar una funcion que realice un preprocesado de la data de los df "search_parameter"
+    
     # origin
     origin_local_file = s3.download_file(PATH_TRASH, path_origin_file)
-    df_origin: pd.DataFrame = pd.read_json(origin_local_file)
+    
+    if "origin_search_parameter" in setting:
+        
+        if len(setting["origin_search_parameter"]):
+            
+            df_origin: pd.DataFrame = search_parameter(
+                pd.read_json(origin_local_file),
+                setting["origin_search_parameter"]
+            )
+        
+        else:
+            df_origin: pd.DataFrame = pd.read_json(origin_local_file)
+        
+    else: 
+        df_origin: pd.DataFrame = pd.read_json(origin_local_file)
+        
     os.remove(origin_local_file)
     
     # alternative
     alternative_local_file = s3.download_file(PATH_TRASH, path_alternative_file)
-    df_aternative: pd.DataFrame = pd.read_json(alternative_local_file)
+    
+    if "alternative_search_parameter" in setting:
+        
+        if len(setting["alternative_search_parameter"]):
+        
+            df_aternative: pd.DataFrame = search_parameter(
+                pd.read_json(alternative_local_file),
+                setting["alternative_search_parameter"]
+            )
+        else:
+            df_aternative: pd.DataFrame = pd.read_json(alternative_local_file)
+    
+    else:
+        df_aternative: pd.DataFrame = pd.read_json(alternative_local_file)
+        
     os.remove(alternative_local_file)
+    
     
     input_dir: list = []
     
     # abquirimos el nombre de los archivos para armar un file txt con la ruta de cada imagen para pasarlo como argumento al input_dir
-    list_images_name_origin: list = df_origin[FIELD_NAME_IMAGES].to_list()
-    list_images_name_alternative: list = df_aternative[FIELD_NAME_IMAGES].to_list()
+    list_images_name_origin: list = df_origin[origin_field_name_images].to_list()
+    list_images_name_alternative: list = df_aternative[alternative_field_name_images].to_list()
     
     for path_s3, list_img in zip([path_origin_img, path_alternative_img], [list_images_name_origin, list_images_name_alternative]):
         
@@ -194,19 +228,19 @@ async def matching_images(matching_data: Matching_images):
 
     for _, row in result.iterrows():
         
-        # buscamos el sku que corresponde al archivo
+        # buscamos el ref que corresponde al archivo
         
         filename_origin = row["filename_from"]
         filename_alternative = row["filename_to"]
         
         for _, row in df_origin.iterrows():
             if filename_origin in row["product_images"]:
-                ref_origin = row["sku"]
+                ref_origin = row[setting["ref_origin"]]
                 break
         
         for _, row in df_aternative.iterrows():
             if filename_alternative in row["product_images"]:
-                ref_alternative = row["sku"]
+                ref_alternative = row[setting["ref_alternative"]]
                 break
         
         if ref_origin not in matches:
