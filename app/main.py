@@ -22,6 +22,17 @@ async def matching_images(matching_data: Matching_images):
     path_report = matching_data.path_report
     img_per_object = matching_data.img_per_object
     setting = matching_data.setting
+    
+    request: dict = {
+        "bucket": matching_data.bucket,
+        "path_origin_file": matching_data.path_origin_file,
+        "path_alternative_file": matching_data.path_alternative_file,
+        "path_origin_img": matching_data.path_origin_img,
+        "path_alternative_img": matching_data.path_alternative_img,
+        "path_report": matching_data.path_report,
+        "img_per_object": matching_data.img_per_object,
+        "setting": matching_data.setting
+    }
 
     try:
         s3 = S3(bucket=bucket)
@@ -68,7 +79,7 @@ async def matching_images(matching_data: Matching_images):
     
     if existe_report:
         detail["route_report"] = {
-            "msm" : f"Ya existe un archivo con el nombre '{path_report.split('/')[-1]}' debes ingresar otro nombre para que este no se sobre escriba.",
+            "msm" : f"Ya existe un archivo con el nombre '{os.path.basename(path_report)}' debes ingresar otro nombre para que este no se sobre escriba.",
             "file_exists": path_report
         }
     
@@ -203,7 +214,7 @@ async def matching_images(matching_data: Matching_images):
     matches: dict = {}
 
     # concatenamos los elemontos que se encuentren en filename_from del origin
-    for index, row in df_origin.iterrows():
+    for _, row in df_origin.iterrows():
         
         product_images = row["product_images"]
         search = similarity[similarity["filename_from"].isin(product_images) & ~(similarity["filename_to"].isin(product_images))]
@@ -215,7 +226,7 @@ async def matching_images(matching_data: Matching_images):
     result = result.reset_index(drop=True)
 
     # eliminamos los elementos que se encuentren en filename_to del origin
-    for index, row in df_origin.iterrows():
+    for _, row in df_origin.iterrows():
         
         product_images = row["product_images"]
         
@@ -228,40 +239,67 @@ async def matching_images(matching_data: Matching_images):
 
     for _, row in result.iterrows():
         
+        ref_origin = None
+        ref_alternative = None
+        
         # buscamos el ref que corresponde al archivo
         
         filename_origin = row["filename_from"]
         filename_alternative = row["filename_to"]
         
         for _, row in df_origin.iterrows():
-            if filename_origin in row["product_images"]:
+            if filename_origin in row[origin_field_name_images]:
                 ref_origin = row[setting["ref_origin"]]
                 break
         
+        #  3 no encuentra el ref
         for _, row in df_aternative.iterrows():
-            if filename_alternative in row["product_images"]:
+            if filename_alternative in row[alternative_field_name_images]:
                 ref_alternative = row[setting["ref_alternative"]]
                 break
         
         if ref_origin not in matches:
             matches[ref_origin] = ref_alternative
     
-    LOCAL_REPORT_PATH: str = "trash/reports/" + path_report.split("/")[-1]
+    # borramos los archivos generados por fastdup
+    delete_directory_content(WORK_DIR)
     
     # creamos un archivo json donde guardaremos el match
-    with open(LOCAL_REPORT_PATH, "w", encoding="utf8") as file:
-        json.dump(matches, file, indent=4)
-    
-    path_report_copy = review_path("/".join(path_report.split("/")[:-1]))
-    
-    # subimos el reporte al s3
-    s3.upload_file(LOCAL_REPORT_PATH, path_report_copy)
-    
-    # borramos el archivo local 
-    os.remove(LOCAL_REPORT_PATH)
-    
-    return {
-        "matches_found": len(matches),
-        "route_where_is_report": path_report,
-        "report_file_name": path_report.split("/")[-1]
-    }
+    if len(matches):
+        
+        local_report_path: str = os.path.join("trash/reports/", os.path.basename(path_report))
+        
+        report: dict = {
+            "request": request,
+            "matches": matches
+        }
+        
+        with open(local_report_path, "w", encoding="utf8") as file:
+            json.dump(report, file, indent=4)
+        
+        path_report_copy = review_path("/".join(path_report.split("/")[:-1]))
+
+        # subimos el reporte al s3
+        s3.upload_file(local_report_path, path_report_copy)
+
+        # borramos el archivo local 
+        os.remove(local_report_path)
+
+        msm: dict = {
+            "matches_found": len(matches), # numero de matches encontrados
+            "route_where_is_report": path_report, # ruta donde esta guardada el archivo de los matches
+            "report_file_name": os.path.basename(path_report), # nombre del reporte 
+            "used_configuration": setting, # confguracion usada para la busqueda
+            "damaged_images": invalid_img_s3 # lista con la direccion de las imagenes que estan dañadas y que no se pudieron reparar
+        }
+        
+        return msm
+        
+    else:
+        print("No se encontraron matches, por lo tanto no se puede generar un reporte.")
+
+        msm: dict = {
+            "msm": "No se encontraron matches."
+        }
+        
+        return msm
