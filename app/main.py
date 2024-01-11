@@ -1,4 +1,4 @@
-from .functions import add_metadata, delete_directory_content, search_parameter
+from .functions import add_metadata, delete_directory_content, search_parameter, assign_reference_to_image
 from fastapi import FastAPI, HTTPException
 from .schemas import Matching_images
 import pandas as pd
@@ -101,6 +101,9 @@ async def matching_images(matching_data: Matching_images):
     origin_field_name_images: str = setting["origin_file_name_imgs"]
     alternative_field_name_images: str = setting["alternative_file_name_imgs"]
     
+    ref_origin_field_name: str = setting["ref_origin"]
+    ref_alternative_field_name: str = setting["ref_alternative"]
+    
     # descargamos los archivos del origin y el aternative
     # lo pasamos a df y despues borramos el archivo
     
@@ -124,25 +127,32 @@ async def matching_images(matching_data: Matching_images):
     else: 
         df_origin: pd.DataFrame = pd.read_json(origin_local_file)
         
+    # una vez obtenido el df_origin, asignamos cada una de las imagenes a su punto de referencia
+    origin_img_with_ref: pd.DataFrame = assign_reference_to_image(df_origin, origin_field_name_images, ref_origin_field_name)
+    
     os.remove(origin_local_file)
     
     # alternative
     alternative_local_file = s3.download_file(PATH_TRASH, path_alternative_file)
     
+    
     if "alternative_search_parameter" in setting:
         
         if len(setting["alternative_search_parameter"]):
         
-            df_aternative: pd.DataFrame = search_parameter(
+            df_alternative: pd.DataFrame = search_parameter(
                 pd.read_json(alternative_local_file),
                 setting["alternative_search_parameter"]
             )
         else:
-            df_aternative: pd.DataFrame = pd.read_json(alternative_local_file)
+            df_alternative: pd.DataFrame = pd.read_json(alternative_local_file)
     
     else:
-        df_aternative: pd.DataFrame = pd.read_json(alternative_local_file)
-        
+        df_alternative: pd.DataFrame = pd.read_json(alternative_local_file)
+    
+    # una vez obtenido el df_origin, asignamos cada una de las imagenes a su punto de referencia
+    alternative_img_with_ref: pd.DataFrame = assign_reference_to_image(df_alternative, alternative_field_name_images, ref_alternative_field_name)
+    
     os.remove(alternative_local_file)
     
     
@@ -150,7 +160,7 @@ async def matching_images(matching_data: Matching_images):
     
     # abquirimos el nombre de los archivos para armar un file txt con la ruta de cada imagen para pasarlo como argumento al input_dir
     list_images_name_origin: list = df_origin[origin_field_name_images].to_list()
-    list_images_name_alternative: list = df_aternative[alternative_field_name_images].to_list()
+    list_images_name_alternative: list = df_alternative[alternative_field_name_images].to_list()
     
     for path_s3, list_img in zip([path_origin_img, path_alternative_img], [list_images_name_origin, list_images_name_alternative]):
         
@@ -206,60 +216,46 @@ async def matching_images(matching_data: Matching_images):
     similarity = fd.similarity()
     os.remove(path_files_s3)
     
+    # cambiamos el la direccion de las imagenes para que solo sea el nombre del archivo
     for col_name in ["filename_from", "filename_to"]: 
         similarity[col_name] = similarity[col_name].apply(lambda x : os.path.basename(x))
 
     # aqui empieza el anailisis de la data de cuales fueron las imagenes con similitud
     result = pd.DataFrame()
     matches: dict = {}
+    
+    
+    similarity = similarity[similarity["filename_from"].isin(origin_img_with_ref["file_name"].to_list())]
+    similarity = similarity[similarity["filename_to"].isin(alternative_img_with_ref["file_name"].to_list())]
 
-    # concatenamos los elemontos que se encuentren en filename_from del origin
-    for _, row in df_origin.iterrows():
+    for _, row in similarity.iterrows():
         
-        product_images = row["product_images"]
-        search = similarity[similarity["filename_from"].isin(product_images) & ~(similarity["filename_to"].isin(product_images))]
-        
-        if len(search) != 0:
-            
-            result = pd.concat([result, search])
-
-    result = result.reset_index(drop=True)
-
-    # eliminamos los elementos que se encuentren en filename_to del origin
-    for _, row in df_origin.iterrows():
-        
-        product_images = row["product_images"]
-        
-        search = result[result["filename_to"].isin(product_images)].index
-            
-        if len(search) != 0:   
-            result = result.drop(index=search)
-
-    result = result.reset_index(drop=True)
-
-    for _, row in result.iterrows():
-        
-        ref_origin = None
-        ref_alternative = None
         
         # buscamos el ref que corresponde al archivo
-        
         filename_origin = row["filename_from"]
         filename_alternative = row["filename_to"]
         
-        for _, row in df_origin.iterrows():
-            if filename_origin in row[origin_field_name_images]:
-                ref_origin = row[setting["ref_origin"]]
-                break
+        # buscamos el codigo de referencia de en nuestro df de img_with_ref
+        code_origin_ref = str(origin_img_with_ref.loc[origin_img_with_ref["file_name"] == filename_origin, "ref"].values[0])
+        code_alternative_ref = str(alternative_img_with_ref.loc[alternative_img_with_ref["file_name"] == filename_alternative, "ref"].values[0])
         
-        #  3 no encuentra el ref
-        for _, row in df_aternative.iterrows():
-            if filename_alternative in row[alternative_field_name_images]:
-                ref_alternative = row[setting["ref_alternative"]]
-                break
         
-        if ref_origin not in matches:
-            matches[ref_origin] = ref_alternative
+        #3
+        if code_origin_ref not in matches:
+            matches[code_origin_ref] = [
+                {
+                    "alternative_ref": code_alternative_ref,
+                    "distance": row["distance"]
+                }
+            ]
+        else:
+            if code_alternative_ref not in [ref["alternative_ref"] for ref in matches[code_origin_ref]]:
+                matches[code_origin_ref].append(
+                    {
+                        "alternative_ref": code_alternative_ref,
+                        "distance": row["distance"]
+                    }
+                )
     
     # borramos los archivos generados por fastdup
     delete_directory_content(WORK_DIR)

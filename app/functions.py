@@ -147,3 +147,26 @@ def search_parameter(df: pd.DataFrame = None, parameter: dict = None) -> pd.Data
     
     # retornamos el df filtrado
     return df_copy
+
+
+def assign_reference_to_image(df: pd.DataFrame = None, list_images_name: str = None, ref_name: str = None) -> pd.DataFrame:
+    
+    img_with_ref = []
+    
+    for _, row in df.iterrows():
+        
+        ref: any = row[ref_name]
+        imges_list: list = row[list_images_name]
+        
+        for img_name in imges_list:
+            
+            img_with_ref.append(
+                {
+                    "file_name": img_name,
+                    "ref": ref
+                }
+            )
+    
+    df_images = pd.DataFrame(img_with_ref)
+    
+    return df_images
