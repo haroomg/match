@@ -61,8 +61,7 @@ def delete_directory_content(directory: str = None) -> str:
 def add_metadata(img_path: str = None, metadata: dict = None) -> str:
     
     if not os.path.exists(img_path):
-        print(img_path)
-        raise ValueError("La Dirección proporcionada no existe o esta mal escrita.")
+        raise ValueError(f"La Dirección proporcionada no existe o esta mal escrita:\n{img_path}")
     
     if not metadata:
         # Si el usario no define una metadata, nosotros agregamos

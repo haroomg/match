@@ -104,10 +104,7 @@ async def matching_images(matching_data: Matching_images):
     ref_origin_field_name: str = setting["ref_origin"]
     ref_alternative_field_name: str = setting["ref_alternative"]
     
-    # descargamos los archivos del origin y el aternative
-    # lo pasamos a df y despues borramos el archivo
-    
-    # Falta implementar una funcion que realice un preprocesado de la data de los df "search_parameter"
+    # descargamos los archivos del origin y el aternative y lo pasamos a df y despues borramos el archivo
     
     # origin
     origin_local_file = s3.download_file(PATH_TRASH, path_origin_file)
@@ -129,12 +126,11 @@ async def matching_images(matching_data: Matching_images):
         
     # una vez obtenido el df_origin, asignamos cada una de las imagenes a su punto de referencia
     origin_img_with_ref: pd.DataFrame = assign_reference_to_image(df_origin, origin_field_name_images, ref_origin_field_name)
-    
+    # borramos el archivo
     os.remove(origin_local_file)
     
     # alternative
     alternative_local_file = s3.download_file(PATH_TRASH, path_alternative_file)
-    
     
     if "alternative_search_parameter" in setting:
         
@@ -152,17 +148,16 @@ async def matching_images(matching_data: Matching_images):
     
     # una vez obtenido el df_origin, asignamos cada una de las imagenes a su punto de referencia
     alternative_img_with_ref: pd.DataFrame = assign_reference_to_image(df_alternative, alternative_field_name_images, ref_alternative_field_name)
-    
+    # borramos el archivo
     os.remove(alternative_local_file)
-    
     
     input_dir: list = []
     
-    # abquirimos el nombre de los archivos para armar un file txt con la ruta de cada imagen para pasarlo como argumento al input_dir
-    list_images_name_origin: list = df_origin[origin_field_name_images].to_list()
-    list_images_name_alternative: list = df_alternative[alternative_field_name_images].to_list()
+    # abquirimos el nombre de los archivos para armar un txt con la ruta de cada imagen para pasarlo como argumento al input_dir
+    files_img_origin: list = df_origin[origin_field_name_images].to_list()
+    files_img_alternative: list = df_alternative[alternative_field_name_images].to_list()
     
-    for path_s3, list_img in zip([path_origin_img, path_alternative_img], [list_images_name_origin, list_images_name_alternative]):
+    for path_s3, list_img in zip([path_origin_img, path_alternative_img], [files_img_origin, files_img_alternative]):
         
         for images in list_img: 
             
@@ -185,33 +180,39 @@ async def matching_images(matching_data: Matching_images):
     with open(path_files_s3, "w", encoding="utf8") as file:
         for path in input_dir:
             file.write(path)
-        
+    
+    # ejecutamos el analisis de fastdup
     fd = fastdup.create(WORK_DIR)
     fd.run(path_files_s3, threshold= 0.5, overwrite= True, high_accuracy= True)
     
-    #3
     # Validamos si existen imagines corruptas
     fastdup_path: str = "trash/fastdup/tmp/"
-    invalid_img_s3: list = [os.path.join(fastdup_path, path.replace(f"s3://{bucket}/", "")) for path in fd.invalid_instances()["filename"].to_list()]
+    path_bucket: str = f"s3://{bucket}/"
     
+    invalid_img_s3: list = [os.path.join(fastdup_path, path.replace(path_bucket, "")) for path in fd.invalid_instances()["filename"].to_list()]
+    
+    # si hay una imagen dañada, la arreglamos y ejecutamos el analisis de nuevo de manera local
     if len(invalid_img_s3): 
         
         for img_path in invalid_img_s3:
-            
             # acomodamos las imagenes que no contienen metadata
             add_metadata(img_path)
             
         # Extraigo el nombre de las imagens de se descargaron del s3
         
-        fastdup_path_img: list = [os.path.join(fastdup_path, path) for path in os.listdir(fastdup_path)]
-        fastdup_path_img = [ path for path in fastdup_path_img if os.path.isdir(path)]
+        with open(path_files_s3, "r", encoding="utf") as file:
+            
+            images: str = file.readlines()
+            
+        with open("trash/fastdup/address_files_s3.txt", "r") as file:
+            s3_images = file.readlines()
+            local_images: list = [os.path.join(fastdup_path, path.replace(path_bucket, "")) for path in images]
         
         # una vez acomodadas las imagenes trabajamos mandamos a correr fastdup
-        fd.run(fastdup_path_img, threshold= 0.5, overwrite= True, high_accuracy= True)
+        fd.run(local_images, threshold= 0.5, overwrite= True, high_accuracy= True)
         
-        # Volvemos a pedir las imagenes que estan corruptas ya que no son por falta de metadata, notificamos el error de estas
+        # Volvemos a pedir las imagenes que estan corruptas que no se puedieron reparar, notificamos el error
         invalid_img_s3: list = fd.invalid_instances()["filename"].to_list()
-    
     
     similarity = fd.similarity()
     os.remove(path_files_s3)
@@ -221,24 +222,22 @@ async def matching_images(matching_data: Matching_images):
         similarity[col_name] = similarity[col_name].apply(lambda x : os.path.basename(x))
 
     # aqui empieza el anailisis de la data de cuales fueron las imagenes con similitud
-    result = pd.DataFrame()
     matches: dict = {}
     
-    
+    # removemos los file del artenative en la columna "filename_from"
     similarity = similarity[similarity["filename_from"].isin(origin_img_with_ref["file_name"].to_list())]
+    # removemos los file del origin en la columna "filename_to"
     similarity = similarity[similarity["filename_to"].isin(alternative_img_with_ref["file_name"].to_list())]
 
     for _, row in similarity.iterrows():
-        
         
         # buscamos el ref que corresponde al archivo
         filename_origin = row["filename_from"]
         filename_alternative = row["filename_to"]
         
         # buscamos el codigo de referencia de en nuestro df de img_with_ref
-        code_origin_ref = str(origin_img_with_ref.loc[origin_img_with_ref["file_name"] == filename_origin, "ref"].values[0])
-        code_alternative_ref = str(alternative_img_with_ref.loc[alternative_img_with_ref["file_name"] == filename_alternative, "ref"].values[0])
-        
+        code_origin_ref = origin_img_with_ref.loc[origin_img_with_ref["file_name"] == filename_origin, "ref"].values[0]
+        code_alternative_ref = alternative_img_with_ref.loc[alternative_img_with_ref["file_name"] == filename_alternative, "ref"].values[0]
         
         #3
         if code_origin_ref not in matches:
