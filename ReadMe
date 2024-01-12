@@ -43,3 +43,36 @@ ________________________________________________________________________________
                 $ uvicorn app.main:app --reload
         o tambine se puede usar:
                 $ python3 run.py
+
+        # Request: Ejemplo de una request.
+<!-- 
+        {
+                "bucket": "hydrahi4ai",
+                "path_origin_file": "ajio-myntra/origin/20231214/New_collector_20231214_154733.success.json",
+                "path_alternative_file": "ajio-myntra/alternative/20231219/Myntra__Marianfer_Cruz_20231219_195028.success.json",
+                "path_origin_img": "ajio-myntra/origin/20231214/",
+                "path_alternative_img": "ajio-myntra/alternative/20231219/",
+                "path_report": "ajio-myntra/reports/test2.json",
+                "img_per_object": 0,
+                
+                "setting": {
+                        
+                        "origin_file_name_imgs": "product_images",
+                        "alternative_file_name_imgs": "product_images",
+                        
+                        "ref_origin": "sku",
+                        "ref_alternative": "sku",
+                        
+                        "origin_search_parameter": {
+                        "category": "Footwear",
+                        "brand": "bucik",
+                        "gender": "Men",
+                        "discountPercent": "80% off"
+                        },
+                        "alternative_search_parameter": {
+                        "brand": "BUCIK",
+                        "color": ["Brown"]
+                        }
+                }
+        } 
+-->

@@ -88,6 +88,7 @@ def add_metadata(img_path: str = None, metadata: dict = None) -> str:
         return img_path
 
 
+#2 se puede modificar para que no sea un df sino solo un object 
 def search_parameter(df: pd.DataFrame = None, parameter: dict = None) -> pd.DataFrame:
     
     if not len(parameter):
@@ -148,6 +149,7 @@ def search_parameter(df: pd.DataFrame = None, parameter: dict = None) -> pd.Data
     return df_copy
 
 
+#2 se puede modificar para que no sea un df sino solo un object
 def assign_reference_to_image(df: pd.DataFrame = None, list_images_name: str = None, ref_name: str = None) -> pd.DataFrame:
     
     img_with_ref = []
