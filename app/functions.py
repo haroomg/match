@@ -5,6 +5,7 @@ import pandas as pd
 import datetime 
 import requests
 import shutil
+import sys
 import os
 
 
@@ -171,3 +172,13 @@ def assign_reference_to_image(df: pd.DataFrame = None, list_images_name: str = N
     df_images = pd.DataFrame(img_with_ref)
     
     return df_images
+
+
+def getsize_var(var: any = None) -> float:
+    """Retorna el peso de una variable en Mb"""
+    return sys.getsizeof(var) / (1024**2)
+
+
+def getsize_file(path: str = None) -> float:
+    """Retorna el peso de un archivo en Mb"""
+    return os.path.getsize(path) / (1024**2)

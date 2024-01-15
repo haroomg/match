@@ -217,7 +217,7 @@ async def matching_images(matching_data: Matching_images):
             # acomodamos las imagenes que no contienen metadata
             add_metadata(img_path)
         
-        # Extraigo el nombre de las imagens de se descargaron del s3 y le pasamos su direccion local
+        # Extraemos el las direccion de las imagenes que se descargaron de manera local
         local_images: list = [os.path.join(fastdup_path, path.replace(path_bucket, "").replace("\n", "")) for path in input_dir]
     
         # borramos el input_dir para liberar la memoria

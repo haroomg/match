@@ -8,12 +8,11 @@
         contiene los scripts de python, osea el proyecto en si.
 
 -   data:
-        Contiene los datos que usaremos como prueba o para descragar.
+        Contiene los datos que usaremos como prueba o para descragar archivos en el.
         #1 status: ignorada.
 
 -   sandbox:
         Contiene los archivos de .ipynb para ejecutar las pruebas.
-        #1 status: ignorada.
 
 -   trash:
         Carpetas o archivos que vamos a guardar para despues borrarlos.
@@ -76,3 +75,8 @@ ________________________________________________________________________________
                 }
         } 
 -->
+
+_____________________________________________________________________________________________________________________________________________________________________________
+
+# Mejoras:
+        - Hay que adactar el script para que lea los archivos en el s3 de manera directa sin que tenga que descargarlo, todo eso sera en el ec2
