@@ -30,7 +30,7 @@ ________________________________________________________________________________
 
                 $ sudo apt install awscli
                 $ aws configure
-                $ aws s3 ls s3://<your bucket name>
+                $ aws s3 ls s3://<your bucket name>/
         
         Usa las varibles de entornos que tienes en el .env para poder conectarte al S3.
 
