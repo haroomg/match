@@ -29,5 +29,6 @@ if __name__ == "__main__":
             app, 
             host=  os.environ.get("FASTDUP_HOST"),
             port= int(os.environ.get("FASTDUP_PORT")),
-            reload= bool(int(os.getenv("DEBUG")))
+            reload= bool(int(os.getenv("DEBUG"))),
+            timeout_keep_alive=None
         )
