@@ -48,7 +48,7 @@ class S3():
     ) -> str:
         
         file_s3_route = file_s3_route.replace(self.bucket, "") if file_s3_route.startswith(self.bucket) else file_s3_route
-        file_name_s3: str = file_s3_route.split("/")[-1]
+        file_name_s3: str = os.path.basename(file_s3_route)
         local_route += file_name_s3 if local_route.endswith("/") else f"/{file_name_s3}"
         
         try:
@@ -58,7 +58,7 @@ class S3():
                 local_route
                 )
             
-            print(f"El archivo {file_name_s3} acaba de ser descargado en la ruta {local_route}")
+            # print(f"El archivo {file_name_s3} acaba de ser descargado en la ruta {local_route}")
             
             return local_route
         

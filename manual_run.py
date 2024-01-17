@@ -33,7 +33,7 @@ def matching_images(respose: dict = None):
     files_in_trash_fastdup = os.listdir(WORK_DIR)
     
     if len(files_in_trash_fastdup):
-        direcction_fastdup_name =str(int(files_in_trash_fastdup[-1]) + 1)
+        direcction_fastdup_name =str(int(files_in_trash_fastdup.pop()) + 1)
     else:
         direcction_fastdup_name = "1"
     
@@ -52,28 +52,30 @@ def matching_images(respose: dict = None):
     #3 no necesariamente tiene que ser un df o si pero hay que iterarlo
     # origin
     
-    if "origin_search_parameter" in setting:
-        
-        if len(setting["origin_search_parameter"]):
+    with open(path_origin_file, "r", encoding="utf8") as file_origin:
+
+        if "origin_search_parameter" in setting:
             
-            df_origin: pd.DataFrame = search_parameter(
-                pd.read_json(path_origin_file),
-                setting["origin_search_parameter"]
-            )
+            if len(setting["origin_search_parameter"]):
+                #3 Cambiar
+                origin_object: list = search_parameter(
+                    json.load(file_origin),
+                    setting["origin_search_parameter"]
+                )
+                
+            else:
+                origin_object: list = json.load(file_origin)
+        else: 
+            origin_object: list = json.load(file_origin)
         
-        else:
-            df_origin: pd.DataFrame = pd.read_json(path_origin_file)
-    else: 
-        df_origin: pd.DataFrame = pd.read_json(path_origin_file)
-        
-    # una vez obtenido el df_origin, asignamos cada una de las imagenes a su punto de referencia
-    origin_img_with_ref: pd.DataFrame = assign_reference_to_image(df_origin, origin_field_name_images, ref_origin_field_name)
+    # una vez obtenido el origin_object, asignamos cada una de las imagenes a su punto de referencia
+    origin_img_with_ref: dict = assign_reference_to_image(origin_object, origin_field_name_images, ref_origin_field_name)
     
     # abquirimos el nombre de los archivos del json de origin
-    files_img_origin: list = df_origin[origin_field_name_images].to_list()
+    files_img_origin: list = [images[origin_field_name_images] for images in origin_object]
     
-    # una vez obtenido el nombre de los archivo eliminamos la variable de df_origin
-    del df_origin
+    # una vez obtenido el nombre de los archivo eliminamos la variable de origin_object
+    del origin_object
     
     # ___________________ data_end  _________________________________#
     
@@ -83,27 +85,29 @@ def matching_images(respose: dict = None):
     #3 no necesariamente tiene que ser un df o si pero hay que iterarlo
     # alternative
     
-    if "alternative_search_parameter" in setting:
-        
-        if len(setting["alternative_search_parameter"]):
-        
-            df_alternative: pd.DataFrame = search_parameter(
-                pd.read_json(path_alternative_file),
-                setting["alternative_search_parameter"]
-            )
+    with open(path_alternative_file, "r", encoding="utf8") as file_aternative:
+
+        if "alternative_search_parameter" in setting:
+            
+            if len(setting["alternative_search_parameter"]):
+                #3 cambiar
+                alternative_object: list = search_parameter(
+                    json.load(file_aternative),
+                    setting["alternative_search_parameter"]
+                )
+            else:
+                alternative_object: list = json.load(file_aternative)
         else:
-            df_alternative: pd.DataFrame = pd.read_json(path_alternative_file)
-    else:
-        df_alternative: pd.DataFrame = pd.read_json(path_alternative_file)
+            alternative_object: list = json.load(file_aternative)
     
-    # una vez obtenido el df_alternative, asignamos cada una de las imagenes a su punto de referencia
-    alternative_img_with_ref: pd.DataFrame = assign_reference_to_image(df_alternative, alternative_field_name_images, ref_alternative_field_name)
+    # una vez obtenido el alternative_object, asignamos cada una de las imagenes a su punto de referencia
+    alternative_img_with_ref: dict = assign_reference_to_image(alternative_object, alternative_field_name_images, ref_alternative_field_name)
     
     # abquirimos el nombre de los archivos del json de alternative
-    files_img_alternative: list = df_alternative[alternative_field_name_images].to_list()
+    files_img_alternative: list = [images[alternative_field_name_images] for images in alternative_object]
     
-    # una vez obtenido el nombre de los archivo eliminamos la variable de df_alternative
-    del df_alternative
+    # una vez obtenido el nombre de los archivo eliminamos la variable de alternative_object
+    del alternative_object
     
     # ___________________ data_end  _________________________________#
     
@@ -127,6 +131,9 @@ def matching_images(respose: dict = None):
                     input_dir.append(
                         f"s3://{bucket}/{path_s3}{img}\n"
                     )
+    
+    # eliminamos el espacio en memoria que ocupa files_img_origin y files_img_alternative
+    del files_img_origin, files_img_alternative
     
     # la lista de imagenes que vamos a analizar lo pasamos a txt para que fastdup las procese
     path_files_s3: str = os.path.join(path_fastdup, "address_files_s3.txt")
@@ -251,20 +258,20 @@ response = {
 
     "img_per_object": 2,
     
-    # "setting": {
-    #     "origin_file_name_imgs": "product_images",
-    #     "alternative_file_name_imgs": "product_images",
+    "setting": {
+        "origin_file_name_imgs": "product_images",
+        "alternative_file_name_imgs": "product_images",
         
-    #     "ref_origin": "sku",
-    #     "ref_alternative": "sku",
+        "ref_origin": "sku",
+        "ref_alternative": "sku",
         
-    #     "origin_search_parameter": {
-    #     "brand": "U.S. POLO ASSN"
-    #     },
-    #     "alternative_search_parameter": {
-    #     "brand": "U.S. POLO ASSN"
-    #     }
-    # }
+        # "origin_search_parameter": {
+        # "brand": "U.S. POLO ASSN"
+        # },
+        # "alternative_search_parameter": {
+        # "brand": "U.S. POLO ASSN"
+        # }
+    }
 }
 
 matching_images(respose=response)
