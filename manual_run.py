@@ -2,6 +2,7 @@
 
 from app.functions import add_metadata, delete_directory_content, search_parameter, assign_reference_to_image
 from app.schemas import Matching_images
+from dotenv import load_dotenv
 from app.s3 import S3
 import pandas as pd
 import fastdup
@@ -10,7 +11,7 @@ import json
 import os
 
 review_path = lambda path : path if path.endswith("/") else path + "/"
-
+load_dotenv(".env")
 def matching_images(respose: dict = None):
     
     bucket = respose["bucket"]
