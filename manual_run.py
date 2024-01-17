@@ -1,249 +1,229 @@
-# Esta es una forma de correr la api de manera local
-
-from app.functions import add_metadata, delete_directory_content, search_parameter, assign_reference_to_image
+from fastapi import FastAPI, HTTPException
+from app.functions import add_metadata
 from app.schemas import Matching_images
-from dotenv import load_dotenv
 from app.s3 import S3
-import pandas as pd
 import fastdup
+import sqlite3
 import shutil
+import ijson
+import os 
 import json
-import os
+
+# constantes
+# Direccion de los archivos temporales
+PATH_IMAGES = "trash/img"
+PATH_REPORT = "trash/reports/"
+PATH_JSON = "trash/s3/"
+PATH_DB = "trash/db/"
+PATH_FASTDUP = "trash/fastdup/"
+
+# Nombre de las tablas de db
+TABLE_NAME = ["origin", "alternative"]
+
+# queries para SQLite
+CREATE_TABLE = "CREATE TABLE IF NOT EXISTS {0} (file_name VARCHAR(1024), ref VARCHAR(256))"
+INSERT = "INSERT INTO {0} (file_name, ref) VALUES (?, ?)"
+SELECT = "SELECT ref FROM {0} WHERE file_name = '{1}'"
 
 review_path = lambda path : path if path.endswith("/") else path + "/"
-load_dotenv(".env")
-def matching_images(respose: dict = None):
+
+def Matching_images(response: dict = None) -> dict:
+
+
+    bucket = response["bucket"]
+    path_origin_file = response["path_origin_file"]
+    path_alternative_file = response["path_alternative_file"]
+    path_origin_img = review_path(response["path_origin_img"])
+    path_alternative_img = review_path(response["path_alternative_img"])
+    img_per_object = response["img_per_object"] #3
+    origin_file_name_imgs = response["setting"]["origin_file_name_imgs"]
+    alternative_file_name_imgs = response["setting"]["alternative_file_name_imgs"]
+    ref_origin = response["setting"]["ref_origin"]
+    ref_alternative = response["setting"]["ref_alternative"]
+    path_report_s3 = response["path_report"]
+    origin_search_parameter = response["origin_search_parameter"]
+    alternative_search_parameter = response["alternative_search_parameter"]
+
+    # analizamos la data obtenida del response 
+
+    try:
+        s3 = S3(bucket=bucket)
+        fd = fastdup.create(PATH_FASTDUP)
+    except:
+        detail["bucket"] = {
+            "msm" : "El nombre del bucket no existe o esta mal escrito.",
+            "bad_bucket": bucket
+        }
+        raise HTTPException(status_code=404, detail= detail)
+        
+    # validamos las direcciones de los archivos
     
-    bucket = respose["bucket"]
-    path_origin_file = respose["path_origin_file"]
-    path_alternative_file = respose["path_alternative_file"]
-    path_origin_img =  respose["path_origin_img"]
-    path_alternative_img = respose["path_alternative_img"]
-    path_report = respose["path_report"]
-    img_per_object = respose["img_per_object"]
-    setting = respose["setting"]
+    is_correct_file, error_route_file = s3.valid_file([path_origin_file, path_alternative_file])
+    is_correct_img,  error_route_img = s3.valid_route([path_origin_img, path_alternative_img])
     
-    s3 = S3(bucket=bucket)
+    # Validamos que la ruta donde se va a guardar el reporte exista
+    is_correct_report_path, error_route_report_path = s3.valid_route(
+        review_path(
+            "/".join(path_report.split("/")[:-1])
+            )
+        )
+    # Validamos que el archivo no exista en la ruta proporcionada
+    existe_report, route_report_exists = s3.valid_file(path_report)
+    
+    detail : dict = {}
+    
+    if not is_correct_file:
+        detail["route_files"] = {
+            "msm" : "Las rutas de los archivos no existen o estan mal escritos.",
+            "bad_routes": error_route_file
+        }
+        
+    if not is_correct_img:
+        detail["route_img"] = {
+            "msm" : "Las rutas de las imagenes no existen o estan mal escritos.",
+            "bad_routes": error_route_img
+        }
+    
+    if not is_correct_report_path:
+        detail["route_report"] = {
+            "msm" : "La ruta donde se va a guardar el reporte esta mal escrito o no existe.",
+            "bad_routes": error_route_report_path
+        }
+    
+    if existe_report:
+        detail["route_report"] = {
+            "msm" : f"Ya existe un archivo con el nombre '{os.path.basename(path_report)}' debes ingresar otro nombre para que este no se sobre escriba.",
+            "file_exists": path_report
+        }
+    
+    if len(detail):
+        raise HTTPException(status_code=404, detail= detail)
+    
+    del error_route_file, is_correct_file
+    del error_route_img, is_correct_img 
+    del is_correct_report_path, error_route_report_path
+    del existe_report, route_report_exists
+    
     
     # finalización de la parte de validación de data
     # --------------------------------------------------------------------------------------------------------------------------------------------------------------------
     
-    # files fastdup
-    WORK_DIR: str = "trash/fastdup/"
-    files_in_trash_fastdup = os.listdir(WORK_DIR)
-    
-    if len(files_in_trash_fastdup):
-        direcction_fastdup_name =str(int(files_in_trash_fastdup.pop()) + 1)
-    else:
-        direcction_fastdup_name = "1"
-    
-    path_fastdup = os.path.join(WORK_DIR, direcction_fastdup_name)
-    os.makedirs(path_fastdup)
-    
-    origin_field_name_images: str = setting["origin_file_name_imgs"]
-    alternative_field_name_images: str = setting["alternative_file_name_imgs"]
-    
-    ref_origin_field_name: str = setting["ref_origin"]
-    ref_alternative_field_name: str = setting["ref_alternative"]
-        
-    # descargamos los archivos del origin y el aternative y lo pasamos a df y despues borramos el archivo
-    
-    # ___________________ data_start : origin _________________________________#
-    #3 no necesariamente tiene que ser un df o si pero hay que iterarlo
-    # origin
-    
-    with open(path_origin_file, "r", encoding="utf8") as file_origin:
 
-        if "origin_search_parameter" in setting:
-            
-            if len(setting["origin_search_parameter"]):
-                #3 Cambiar
-                origin_object: list = search_parameter(
-                    json.load(file_origin),
-                    setting["origin_search_parameter"]
-                )
+    # s3 data path
+    s3_json_path =  [ path_origin_file, path_alternative_file ]
+
+    # s3 img path
+    s3_img_path = [path_origin_img, path_alternative_img]
+
+    field_name_file_images = [origin_file_name_imgs, alternative_file_name_imgs]
+    field_name_ref = [ref_origin, ref_alternative]
+
+    # parametros de busqueda
+    search_parameter = [origin_search_parameter, alternative_search_parameter]
+
+    # filename db and images
+    db_name = "trash/db/db_filename.sqlite"
+    filename_images = "trash/fastdup/path_images.txt"
+    path_report = os.path.join(PATH_REPORT, os.basename(path_report_s3))
+
+    # creamos la db donde vamos a guardar el nombre de las imagenes junto con su referencia
+    with sqlite3.connect(db_name) as con:
+        
+        # creamos el archivo donde vamos a guardar la direccion de las imagenes 
+        with open(filename_images, "w", encoding="utf-8") as file:
+
+            for i, path in enumerate(s3_json_path):
+
+                # descargamos el archivo de la data scrapeada
+                json_path = s3.download_file(PATH_JSON, path)
                 
-            else:
-                origin_object: list = json.load(file_origin)
-        else: 
-            origin_object: list = json.load(file_origin)
-        
-    # una vez obtenido el origin_object, asignamos cada una de las imagenes a su punto de referencia
-    origin_img_with_ref: dict = assign_reference_to_image(origin_object, origin_field_name_images, ref_origin_field_name)
-    
-    # abquirimos el nombre de los archivos del json de origin
-    files_img_origin: list = [images[origin_field_name_images] for images in origin_object]
-    
-    # una vez obtenido el nombre de los archivo eliminamos la variable de origin_object
-    del origin_object
-    
-    # ___________________ data_end  _________________________________#
-    
-    # ______________________________________________________________________________#
-    
-    # ___________________ data_start : alternative _________________________________#
-    #3 no necesariamente tiene que ser un df o si pero hay que iterarlo
-    # alternative
-    
-    with open(path_alternative_file, "r", encoding="utf8") as file_aternative:
-
-        if "alternative_search_parameter" in setting:
-            
-            if len(setting["alternative_search_parameter"]):
-                #3 cambiar
-                alternative_object: list = search_parameter(
-                    json.load(file_aternative),
-                    setting["alternative_search_parameter"]
-                )
-            else:
-                alternative_object: list = json.load(file_aternative)
-        else:
-            alternative_object: list = json.load(file_aternative)
-    
-    # una vez obtenido el alternative_object, asignamos cada una de las imagenes a su punto de referencia
-    alternative_img_with_ref: dict = assign_reference_to_image(alternative_object, alternative_field_name_images, ref_alternative_field_name)
-    
-    # abquirimos el nombre de los archivos del json de alternative
-    files_img_alternative: list = [images[alternative_field_name_images] for images in alternative_object]
-    
-    # una vez obtenido el nombre de los archivo eliminamos la variable de alternative_object
-    del alternative_object
-    
-    # ___________________ data_end  _________________________________#
-    
-    # aqui se van a guardar las direcciones de las imagenes en el s3
-    input_dir: list = []
-    
-    for path_s3, list_img in zip([path_origin_img, path_alternative_img], [files_img_origin, files_img_alternative]):
-        
-        for images in list_img: 
-            
-            if img_per_object == 0:
-                amount = len(list_img)
-            else:
-                if len(list_img) <= img_per_object:
-                    amount = len(list_img)
-                if len(list_img) > img_per_object:
-                    amount = img_per_object
+                # abrimos el archivo i lo recorremos con un iterador por trozo
+                with open(json_path, "r", encoding="utf-8") as json:
                     
-            for img  in images[0:amount]:
-                if img:
-                    input_dir.append(
-                        f"s3://{bucket}/{path_s3}{img}\n"
-                    )
+                    # creamos la tabla donde se va guardar los nombres junto con su referencia
+                    con.execute(CREATE_TABLE.format(TABLE_NAME[i]))
+                    objets_json = ijson.items(json, "item")
+                    
+                    for obj in objets_json:
+                        
+                        images_name = obj[field_name_file_images[i]]
+                        ref = obj[field_name_ref[i]]
+                        amount = img_per_object if len(images_name) >= img_per_object else len(images_name)
+                        images_name = images_name[:amount]
+
+                        for image in images_name:
+                            
+                            # si el valor es false se lo salta
+                            if image:
+                            
+                                path_s3_img = os.path.join(s3_img_path[i], image)
+                                con.execute(INSERT.format(TABLE_NAME[i]), (image, ref))
+                                path_local_img = s3.download_file(PATH_IMAGES, path_s3_img)
+                                file.write(path_local_img+"\n")
+            
+                os.remove(json_path)
+                con.commit()
     
-    # eliminamos el espacio en memoria que ocupa files_img_origin y files_img_alternative
-    del files_img_origin, files_img_alternative
-    
-    # la lista de imagenes que vamos a analizar lo pasamos a txt para que fastdup las procese
-    path_files_s3: str = os.path.join(path_fastdup, "address_files_s3.txt")
-    with open(path_files_s3, "w", encoding="utf8") as file:
-        for path in input_dir:
-            file.write(path)
-    
-    # ejecutamos el analisis de fastdup
-    fd = fastdup.create(path_fastdup)
-    fd.run(path_files_s3, threshold= 0.5, overwrite= True, high_accuracy= True)
-    
-    # Validamos si existen imagines corruptas
-    fastdup_path: str = os.path.join(path_fastdup, "tmp")
-    path_bucket: str = f"s3://{bucket}/"
-    
-    invalid_img_s3: list = [os.path.join(fastdup_path, path.replace(path_bucket, "")) for path in fd.invalid_instances()["filename"].to_list()]
-    
-    # si hay una imagen dañada, la arreglamos y ejecutamos el analisis de nuevo de manera local
-    if len(invalid_img_s3): 
+    # revisamos las imagenes con fastdup
+    fd.run(filename_images, threshold= 0.5, overwrite= True, high_accuracy= True)
+    # pedimos las imagenes que son invalidas
+    invalid_img_s3: list = fd.invalid_instances()["filename"].to_list()
+
+    if len(invalid_img_s3):
+        for damaged_file in invalid_img_s3:
+            add_metadata(damaged_file)
         
-        for img_path in invalid_img_s3:
-            # acomodamos las imagenes que no contienen metadata
-            add_metadata(img_path)
-        
-        # Extraemos el las direccion de las imagenes que se descargaron de manera local
-        local_images: list = [os.path.join(fastdup_path, path.replace(path_bucket, "").replace("\n", "")) for path in input_dir]
-    
-        # borramos el input_dir para liberar la memoria
-        del input_dir
-        
-        # corremos de nuevo el fastdup
-        fd.run(local_images, threshold= 0.5, overwrite= True, high_accuracy= True)
-        
-        # Volvemos a pedir las imagenes que estan corruptas que no se puedieron reparar, notificamos el error
-        invalid_img_s3: list = fd.invalid_instances()["filename"].to_list()
-        
-    else:
-        # borramos el input_dir para liberar la memoria
-        del input_dir
-    
+        # analizo las imagenes de nuevo
+        fd.run(filename_images, threshold= 0.5, overwrite= True, high_accuracy= True)
+
     similarity = fd.similarity()
-    
+
     # cambiamos el la direccion de las imagenes para que solo sea el nombre del archivo
     for col_name in ["filename_from", "filename_to"]: 
         similarity[col_name] = similarity[col_name].apply(lambda x : os.path.basename(x))
 
-    # aqui empieza el anailisis de la data de cuales fueron las imagenes con similitud
-    matches: dict = {}
+    matches = {}
+
+    with sqlite3.connect(db_name) as con:
+        
+        for i, row in similarity.iterrows():
+
+            filename_from = row["filename_from"]
+            code_ref_origin = con.execute(SELECT.format("origin", filename_from)).fetchone()
+
+            if code_ref_origin:
+
+                filename_to = row["filename_to"]
+                code_ref_aternative = con.execute(SELECT.format("alternative", filename_to)).fetchone()
+                
+                if not code_ref_aternative:
+                    continue
+                else:
+                    code_ref_origin = code_ref_origin[0]
+                    code_ref_aternative = code_ref_aternative[0]
+
+                    if code_ref_origin not in matches:
+                        matches[code_ref_origin] = {code_ref_aternative: row["distance"]}
+                    else:
+                        matches[code_ref_origin][code_ref_aternative] = row["distance"]
+
+    report = {
+        "response": response,
+        "matches": matches
+    }
+
+    with open(path_report, "w", encoding="utf-8") as file:
+        json.dump(report, file, indent=4)
     
-    # removemos los file del artenative en la columna "filename_from"
-    similarity = similarity[similarity["filename_from"].isin(origin_img_with_ref["file_name"].to_list())]
-    # removemos los file del origin en la columna "filename_to"
-    similarity = similarity[similarity["filename_to"].isin(alternative_img_with_ref["file_name"].to_list())]
+    s3.upload_file(path_report, os.path.dirname(path_report_s3))
+    os.remove(path_report)
 
-    for _, row in similarity.iterrows():
-        
-        # buscamos el ref que corresponde al archivo
-        filename_origin = row["filename_from"]
-        filename_alternative = row["filename_to"]
-        
-        #3
-        # buscamos el codigo de referencia de en nuestro df de img_with_ref
-        code_origin_ref = str(origin_img_with_ref.loc[origin_img_with_ref["file_name"] == filename_origin, "ref"].values[0])
-        code_alternative_ref = str(alternative_img_with_ref.loc[alternative_img_with_ref["file_name"] == filename_alternative, "ref"].values[0])
-        
-        #3
-        if code_origin_ref not in matches:
-            matches[code_origin_ref] = [
-                {
-                    "alternative_ref": code_alternative_ref,
-                    "distance": row["distance"]
-                }
-            ]
-        else:
-            if code_alternative_ref not in [ref["alternative_ref"] for ref in matches[code_origin_ref]]:
-                matches[code_origin_ref].append(
-                    {
-                        "alternative_ref": code_alternative_ref,
-                        "distance": row["distance"]
-                    }
-                )
-    
-    #3 borramos la carpeta creada temporalmente en el fastdup
-    shutil.rmtree(path_fastdup)
-    
-    # creamos un archivo json donde guardaremos el match
-    if len(matches):
-        
-        local_report_path: str = os.path.join("trash/reports/", os.path.basename(path_report))
-        
-        report: dict = {
-            "request": respose,
-            "matches": matches
-        }
-        
-        with open(local_report_path, "w", encoding="utf8") as file:
-            json.dump(report, file, indent=4)
-        
-        path_report_copy = review_path("/".join(path_report.split("/")[:-1]))
+    return {
+        "response": response,
+        "macht_founds": len(matches),
+        "invalid_img": invalid_img_s3
+    }
 
-        # subimos el reporte al s3
-        s3.upload_file(local_report_path, path_report_copy)
-
-        # borramos el archivo local 
-        os.remove(local_report_path)
-        
-        print(f"Se encontraron {len(matches)} y se caban de guardar en la direccion:\n{path_report}")
-
-    else:
-        print("No se encontraron matches, por lo tanto no se puede generar un reporte.")
 
 response = {
     "bucket": "hydrahi4ai",
@@ -265,13 +245,13 @@ response = {
         "ref_origin": "sku",
         "ref_alternative": "sku",
         
-        # "origin_search_parameter": {
-        # "brand": "U.S. POLO ASSN"
-        # },
-        # "alternative_search_parameter": {
-        # "brand": "U.S. POLO ASSN"
-        # }
+        "origin_search_parameter": {
+            "brand": "U.S. POLO ASSN"
+        },
+        "alternative_search_parameter": {
+            "brand": "U.S. POLO ASSN"
+        }
     }
 }
 
-matching_images(respose=response)
+Matching_images(response)

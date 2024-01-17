@@ -58,7 +58,7 @@ class S3():
                 local_route
                 )
             
-            # print(f"El archivo {file_name_s3} acaba de ser descargado en la ruta {local_route}")
+            print(f"El archivo {file_name_s3} acaba de ser descargado en la ruta {local_route}")
             
             return local_route
         
