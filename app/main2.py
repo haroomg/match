@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
-from app.functions import add_metadata, search_parameter
-from app.schemas import Matching_images
-from app.s3 import S3
+from .functions import add_metadata, search_parameter
+from .schemas import Matching_images
+from .s3 import S3
 import pandas as pd
 import fastdup
 import sqlite3
@@ -26,10 +26,13 @@ CREATE_TABLE = "CREATE TABLE IF NOT EXISTS {0} (file_name VARCHAR(1024), ref VAR
 INSERT = "INSERT INTO {0} (file_name, ref) VALUES (?, ?)"
 SELECT = "SELECT ref FROM {0} WHERE file_name = '{1}'"
 
+# quieries para postgres
+
+
+
 review_path = lambda path : path if path.endswith("/") else path + "/"
 
-def Matching_images(response: dict = None) -> dict:
-
+def matching_images(response: dict = None) -> dict:
 
     bucket = response["bucket"]
     path_origin_file = response["path_origin_file"]
@@ -90,8 +93,8 @@ def Matching_images(response: dict = None) -> dict:
     
     if existe_report:
         detail["route_report"] = {
-            "msm" : f"Ya existe un archivo con el nombre '{os.path.basename(path_report)}' debes ingresar otro nombre para que este no se sobre escriba.",
-            "file_exists": path_report
+            "msm" : f"Ya existe un archivo con el nombre '{os.path.basename(path_report_s3)}' debes ingresar otro nombre para que este no se sobre escriba.",
+            "file_exists": path_report_s3
         }
     
     if len(detail):
@@ -149,7 +152,7 @@ def Matching_images(response: dict = None) -> dict:
     path_report = os.path.join(PATH_REPORT, os.path.basename(path_report_s3))
 
     # creamos la db donde vamos a guardar el nombre de las imagenes junto con su referencia
-    with sqlite3.connect(db_name) as con:
+    with sqlite3.connect(db_name) as con1:
         
         # creamos el archivo donde vamos a guardar la direccion de las imagenes 
         with open(filename_images, "w", encoding="utf-8") as file:
@@ -170,14 +173,23 @@ def Matching_images(response: dict = None) -> dict:
                 with open(json_path, "r", encoding="utf-8") as json_file:
                     
                     # creamos la tabla donde se va guardar los nombres junto con su referencia
-                    con.execute(CREATE_TABLE.format(TABLE_NAME[i]))
+                    con1.execute(CREATE_TABLE.format(TABLE_NAME[i]))
                     objets_json = ijson.items(json_file, "item")
                     
                     for obj in objets_json:
                         
                         images_name = obj[field_name_file_images[i]]
                         ref = obj[field_name_ref[i]]
-                        amount = img_per_object if len(images_name) >= img_per_object else len(images_name)
+                        
+                        len_images = len(images_name)
+
+                        if img_per_object == 0:
+                            amount = len_images
+                        elif img_per_object <= len_images:
+                            amount = img_per_object
+                        elif img_per_object > len_images:
+                            amount = len_images
+
                         images_name = images_name[:amount]
 
                         for image in images_name:
@@ -186,12 +198,14 @@ def Matching_images(response: dict = None) -> dict:
                             if image:
                             
                                 path_s3_img = os.path.join(s3_img_path[i], image)
-                                con.execute(INSERT.format(TABLE_NAME[i]), (image, ref))
+                                con1.execute(INSERT.format(TABLE_NAME[i]), (image, ref))
                                 path_local_img = s3.download_file(PATH_IMAGES, path_s3_img)
                                 file.write(path_local_img+"\n")
             
                 os.remove(json_path)
-                con.commit()
+                con1.commit()
+    con1.close()
+
     
     # revisamos las imagenes con fastdup
     fd.run(filename_images, threshold= 0.5, overwrite= True, high_accuracy= True)
@@ -213,17 +227,17 @@ def Matching_images(response: dict = None) -> dict:
 
     matches = {}
 
-    with sqlite3.connect(db_name) as con:
+    with sqlite3.connect(db_name) as con2:
         
         for i, row in similarity.iterrows():
 
             filename_from = row["filename_from"]
-            code_ref_origin = con.execute(SELECT.format("origin", filename_from)).fetchone()
+            code_ref_origin = con2.execute(SELECT.format("origin", filename_from)).fetchone()
 
             if code_ref_origin:
 
                 filename_to = row["filename_to"]
-                code_ref_aternative = con.execute(SELECT.format("alternative", filename_to)).fetchone()
+                code_ref_aternative = con2.execute(SELECT.format("alternative", filename_to)).fetchone()
                 
                 if not code_ref_aternative:
                     continue
@@ -235,6 +249,8 @@ def Matching_images(response: dict = None) -> dict:
                         matches[code_ref_origin] = {code_ref_aternative: row["distance"]}
                     else:
                         matches[code_ref_origin][code_ref_aternative] = row["distance"]
+
+    con2.close()
 
     report = {
         "response": response,
@@ -260,35 +276,3 @@ def Matching_images(response: dict = None) -> dict:
         "macht_founds": len(matches),
         "invalid_img": invalid_img_s3
     }
-
-
-response = {
-    "bucket": "hydrahi4ai",
-
-    "path_origin_file": "ajio-myntra/origin/20240112/New_collector_20240112_172137.success.json",
-    "path_alternative_file": "ajio-myntra/alternative/20240110/Myntra__Marianfer_Cruz_20240111_095149.success.json",
-
-    "path_origin_img": "ajio-myntra/origin/20240112/",
-    "path_alternative_img": "ajio-myntra/alternative/20240110/",
-
-    "path_report": "ajio-myntra/reports/matchin_ajio_myntra_1.json",
-
-    "img_per_object": 1,
-    
-    "setting": {
-        "origin_file_name_imgs": "product_images",
-        "alternative_file_name_imgs": "product_images",
-        
-        "ref_origin": "sku",
-        "ref_alternative": "sku",
-        
-        "origin_search_parameter": {
-            "brand": "2bme"
-        },
-        "alternative_search_parameter": {
-            "brand": "2Bme"
-        }
-    }
-}
-
-Matching_images(response)
