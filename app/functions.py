@@ -89,11 +89,9 @@ def add_metadata(img_path: str = None, metadata: dict = None) -> str:
         return img_path
 
 
-#2 se puede modificar para que no sea un df sino solo un object 
-def search_parameter(df: pd.DataFrame = None, parameter: dict = None) -> pd.DataFrame:
+def search_parameter(json_path: str = None, parameter: dict = None) -> None:
     
-    if not len(parameter):
-        return df
+    df = pd.read_json(json_path)
     
     df_columns = df.columns
     
@@ -106,7 +104,8 @@ def search_parameter(df: pd.DataFrame = None, parameter: dict = None) -> pd.Data
     
     if not len(parameter):
         print("Ninguno de los parámetros proporcionados se encuentran en el df por lo tanto lo retornamos como estaba.")
-        return df
+        df.to_json(json_path, orient="records")
+        return 
     
     # validamos los valores de busqueda
     for key,value in parameter.copy().items():
@@ -131,23 +130,23 @@ def search_parameter(df: pd.DataFrame = None, parameter: dict = None) -> pd.Data
     
     if not len(parameter):
         print("Ninguno de los parámetros proporcionados se encuentran en el df por lo tanto lo retornamos como estaba.")
-        return df
+        df.to_json()
     
     # si todo sale bien empezamos a realizar las busquedas en el df
-    df_copy = df
     
     for key, value in parameter.items():
         
         if isinstance(value, (str, int, float, bool)):
             
-            df_copy = df_copy[ df_copy[key] == value]
+            df = df[ df[key] == value]
         
         elif isinstance(value, list):
             
-            df_copy = df_copy[df_copy[key].isin(value)]
+            df = df[df[key].isin(value)]
     
-    # retornamos el df filtrado
-    return df_copy
+    # Reacomodamos el json con los nuevos datos filtrados
+    df.to_json(json_path, orient="records")
+    return 
 
 
 #2 se puede modificar para que no sea un df sino solo un object
