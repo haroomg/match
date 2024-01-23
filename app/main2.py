@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from .functions import add_metadata, search_parameter
 from .schemas import Matching_images
+from pprint import pprint as pp
 from .s3 import S3
 import pandas as pd
 import fastdup
@@ -45,6 +46,7 @@ def matching_images(response: dict = None) -> dict:
     ref_alternative = response["setting"]["ref_alternative"]
     path_report_s3 = response["path_report"]
     
+    detail : dict = {}
 
     # analizamos la data obtenida del response 
     try:
@@ -56,54 +58,54 @@ def matching_images(response: dict = None) -> dict:
             "bad_bucket": bucket
         }
         raise HTTPException(status_code=404, detail= detail)
+
+    #3
+    # estamos dando por hecho de que la infomacion que nos estan dando esta bien asi que nos saltamos el paso de verificar
+    # # validamos las direcciones de los archivos
+    
+    # is_correct_file, error_route_file = s3.valid_file([path_origin_file, path_alternative_file])
+    # is_correct_img,  error_route_img = s3.valid_route([path_origin_img, path_alternative_img])
+    
+    # # Validamos que la ruta donde se va a guardar el reporte exista
+    # is_correct_report_path, error_route_report_path = s3.valid_route(
+    #     review_path(
+    #         "/".join(path_report_s3.split("/")[:-1])
+    #         )
+    #     )
+    # # Validamos que el archivo no exista en la ruta proporcionada
+    # existe_report, route_report_exists = s3.valid_file(path_report_s3)
+    
+    # if not is_correct_file:
+    #     detail["route_files"] = {
+    #         "msm" : "Las rutas de los archivos no existen o estan mal escritos.",
+    #         "bad_routes": error_route_file
+    #     }
         
-    # validamos las direcciones de los archivos
+    # if not is_correct_img:
+    #     detail["route_img"] = {
+    #         "msm" : "Las rutas de las imagenes no existen o estan mal escritos.",
+    #         "bad_routes": error_route_img
+    #     }
     
-    is_correct_file, error_route_file = s3.valid_file([path_origin_file, path_alternative_file])
-    is_correct_img,  error_route_img = s3.valid_route([path_origin_img, path_alternative_img])
+    # if not is_correct_report_path:
+    #     detail["route_report"] = {
+    #         "msm" : "La ruta donde se va a guardar el reporte esta mal escrito o no existe.",
+    #         "bad_routes": error_route_report_path
+    #     }
     
-    # Validamos que la ruta donde se va a guardar el reporte exista
-    is_correct_report_path, error_route_report_path = s3.valid_route(
-        review_path(
-            "/".join(path_report_s3.split("/")[:-1])
-            )
-        )
-    # Validamos que el archivo no exista en la ruta proporcionada
-    existe_report, route_report_exists = s3.valid_file(path_report_s3)
+    # if existe_report:
+    #     detail["route_report"] = {
+    #         "msm" : f"Ya existe un archivo con el nombre '{os.path.basename(path_report_s3)}' debes ingresar otro nombre para que este no se sobre escriba.",
+    #         "file_exists": path_report_s3
+    #     }
     
-    detail : dict = {}
+    # if len(detail):
+    #     raise HTTPException(status_code=404, detail= detail)
     
-    if not is_correct_file:
-        detail["route_files"] = {
-            "msm" : "Las rutas de los archivos no existen o estan mal escritos.",
-            "bad_routes": error_route_file
-        }
-        
-    if not is_correct_img:
-        detail["route_img"] = {
-            "msm" : "Las rutas de las imagenes no existen o estan mal escritos.",
-            "bad_routes": error_route_img
-        }
-    
-    if not is_correct_report_path:
-        detail["route_report"] = {
-            "msm" : "La ruta donde se va a guardar el reporte esta mal escrito o no existe.",
-            "bad_routes": error_route_report_path
-        }
-    
-    if existe_report:
-        detail["route_report"] = {
-            "msm" : f"Ya existe un archivo con el nombre '{os.path.basename(path_report_s3)}' debes ingresar otro nombre para que este no se sobre escriba.",
-            "file_exists": path_report_s3
-        }
-    
-    if len(detail):
-        raise HTTPException(status_code=404, detail= detail)
-    
-    del error_route_file, is_correct_file
-    del error_route_img, is_correct_img 
-    del is_correct_report_path, error_route_report_path
-    del existe_report, route_report_exists
+    # del error_route_file, is_correct_file
+    # del error_route_img, is_correct_img 
+    # del is_correct_report_path, error_route_report_path
+    # del existe_report, route_report_exists
     
 
     if "img_per_object" in response:

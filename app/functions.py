@@ -149,6 +149,51 @@ def search_parameter(json_path: str = None, parameter: dict = None) -> None:
     return 
 
 
+def search_parameter_fast(json_path: str = None, parameter: dict = None) -> None:
+    
+    df = pd.read_json(json_path)
+    
+    df_columns = df.columns
+    
+    # validamos que el parametro este en el df, en caso de que no lo quitamos
+    for key in parameter.copy():
+        if key not in df_columns:
+            
+            print(f"{key} no se encuentra en el df.")
+            del parameter[key]
+    
+    if not len(parameter):
+        print("Ninguno de los parámetros proporcionados se encuentran en el df por lo tanto lo retornamos como estaba.")
+        df.to_json(json_path, orient="records")
+        return 
+    
+    # validamos los valores de busqueda
+    for key,value in parameter.copy().items():
+        
+        if isinstance(value, (str, int, float, bool)):
+            
+            search = df[ df[key] == value]
+            if not len(search):
+                print(f"No se encontro en valor '{value}' en la columna '{key}' por lo tanto no se va a buscar.")
+                del parameter[key]
+        
+        elif isinstance(value, list):
+            
+            search = df[df[key].isin(value)]
+            if not len(search):
+                print(f"No se encontro los valores '{value}' en la columna '{key}' por lo tanto no se va a buscar.")
+                del parameter[key]
+        
+        elif isinstance(value, dict):
+            print(f"No se aceptan parametros de tipo {type(value).__name__}")
+            del parameter[key]
+    
+    if len(parameter):
+        return True
+    else:
+        print("Ninguno de los parámetros proporcionados se encuentran en el df.")
+        return False
+
 #2 se puede modificar para que no sea un df sino solo un object
 def assign_reference_to_image(df: pd.DataFrame = None, list_images_name: str = None, ref_name: str = None) -> pd.DataFrame:
     

@@ -58,7 +58,7 @@ class S3():
                 local_route
                 )
             
-            print(f"El archivo {file_name_s3} acaba de ser descargado en la ruta {local_route}")
+            # print(f"El archivo {file_name_s3} acaba de ser descargado en la ruta {local_route}")
             
             return local_route
         
@@ -152,7 +152,7 @@ class S3():
                 print(f"La ruta '{route}' existe.")
                 all_correct.append(True)
             else:
-                print(f"La ruta '{route}' no existe o esta mal escrita")
+                # print(f"La ruta '{route}' no existe o esta mal escrita")
                 all_correct.append(False)
     
         if all(all_correct):
